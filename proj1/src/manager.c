@@ -217,7 +217,37 @@ bool_t release_resource(pcb_t *proc, char *resource_name) {
  */
 void enqueue(pcb_t *pcb, pcb_queue_t *queue, int status) {
   // TODO: implement
+  pcb->next = NULL;
+  pcb->state = status;
 
+  if (queue->first == NULL)
+  {
+    queue->first = pcb;
+    queue->last = pcb;
+  }
+  else
+  {
+    queue->last->next = pcb;
+    queue->last = pcb; 
+  }
+  queue->last = pcb;
+  switch(status)
+  {
+    case READY:
+      log_ready(pcb->process->name);
+      break;
+
+    case WAITING:
+      log_request_waiting(pcb->process->name, pcb->next_instruction->resource_name);
+      break;
+
+    case TERMINATED:
+      log_terminated(pcb->process->name);
+      break;
+
+    default: break;
+  }
+  return;
 }
 
 /**
