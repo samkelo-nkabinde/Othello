@@ -81,11 +81,25 @@ int main(int argc, char** argv) {
 void init_system(void)
 {
   readyq.first = longterm_scheduler();
-  readyq.last = NULL; 
+  readyq.last = NULL;
 
   // TODO: Update the states of each process pcb added to readyq
   // TODO: Update any counters used to detect termination
   // TODO: Set readyq.last to point to the last pcb in the queue linked list
+  if(readyq.first != NULL)
+  {
+    pcb_t *temp = readyq.first;
+
+    while(temp != NULL)
+    {
+      temp->state = READY;
+
+      if(temp->next == NULL)
+        readyq.last = temp;
+
+      temp = temp->next;
+    }
+  }
 
   waitingq.last = NULL;
   waitingq.first = NULL;
@@ -151,11 +165,11 @@ void schedule_priority(void) {
  *  If there is an unknown / no instruction, call the appropriate log function:
  *    log_unknown_instr() / log_no_instr()
  *  If the instruction was to release a resource, and it was successful,
- *    wake up the first process in the waiting queue waiting for this resource 
+ *    wake up the first process in the waiting queue waiting for this resource
  *    and if there is a process to wake up, log it with the log_wake_up() function
  *  Update the status of the process in its pcb and return its status,
- *    so that the scheduler can act accordingly 
- *    
+ *    so that the scheduler can act accordingly
+ *
  **/
 int execute_instr(pcb_t *pcb) {
     // TODO: implement
@@ -182,7 +196,7 @@ bool_t acquire_resource(pcb_t *cur_pcb, char *resource_name) {
  *  Update the allocated field
  *  Find a process that is waiting for a resource with the same name and move it to the ready queue
  *
- * If the release was successful, the following logging function must be called 
+ * If the release was successful, the following logging function must be called
  *  log_release_released(pcb->process->name, resource_name);
  *  log_avail_resources(system_resources);
  *  log_msg("\n");
@@ -203,11 +217,12 @@ bool_t release_resource(pcb_t *proc, char *resource_name) {
  */
 void enqueue(pcb_t *pcb, pcb_queue_t *queue, int status) {
   // TODO: implement
+
 }
 
 /**
  * @brief detect deadlock
- * If deadlock is detected, the following log function must be called 
+ * If deadlock is detected, the following log function must be called
  *  log_deadlock_detected();
  */
 struct pcb_t* detect_deadlock(void) {
@@ -254,12 +269,12 @@ int get_time_quantum(int num_args, char **argv) {
 
 /** @brief Print the arguments of the program */
 void print_args(int num_thr, char *data, int sched, int tq) {
-  printf("Arguments: num_threads = %d, data = %s, scheduler = %s,  time quantum = %d\n", num_thr, data, (sched==0)?"priority":(sched==1)?"RR":"FCFS", tq); 
+  printf("Arguments: num_threads = %d, data = %s, scheduler = %s,  time quantum = %d\n", num_thr, data, (sched==0)?"priority":(sched==1)?"RR":"FCFS", tq);
 }
 
 
 /**
- * @brief Print the currently running process, as well as all the queued processes 
+ * @brief Print the currently running process, as well as all the queued processes
  */
 void print_queues(pcb_t *cur_pcb) {
   if (cur_pcb != NULL) log_running(cur_pcb, omp_get_thread_num());
