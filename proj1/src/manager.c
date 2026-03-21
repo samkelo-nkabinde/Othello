@@ -187,7 +187,23 @@ int execute_instr(pcb_t *pcb) {
  */
 bool_t acquire_resource(pcb_t *cur_pcb, char *resource_name) {
   // TODO: implement
-
+  resource_t *resource = system_resources;
+  while (resource != NULL)
+  {
+    if (strcmp(resource->name, resource_name) == 0)
+    {
+      if (resource->allocated == NULL)
+      {
+        resource->allocated = cur_pcb;
+        log_request_acquired(cur_pcb->process->name, resource_name);
+        log_avail_resources(system_resources);
+        log_msg("\n");
+        return TRUE;
+      }
+      return FALSE; // return false if resource is already taken
+    }
+    resource = resource->next;
+  }
   return FALSE;
 }
 
@@ -228,7 +244,7 @@ void enqueue(pcb_t *pcb, pcb_queue_t *queue, int status) {
   else
   {
     queue->last->next = pcb;
-    queue->last = pcb; 
+    queue->last = pcb;
   }
   queue->last = pcb;
   switch(status)
