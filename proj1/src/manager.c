@@ -88,17 +88,18 @@ void init_system(void)
   // TODO: Set readyq.last to point to the last pcb in the queue linked list
   if(readyq.first != NULL)
   {
-    pcb_t *temp = readyq.first;
+    pcb_t *current_pcb = readyq.first;
+    pcb_t *previous_pcb = NULL;
 
-    while(temp != NULL)
+    while(current_pcb != NULL)
     {
-      temp->state = READY;
-
-      if(temp->next == NULL)
-        readyq.last = temp;
-
-      temp = temp->next;
+      current_pcb->state = READY;
+      previous_pcb = current_pcb;
+      current_pcb = current_pcb->next;
     }
+
+    if(previous_pcb != NULL)
+      readyq.last = previous;
   }
 
   waitingq.last = NULL;
@@ -187,23 +188,39 @@ int execute_instr(pcb_t *pcb) {
  */
 bool_t acquire_resource(pcb_t *cur_pcb, char *resource_name) {
   // TODO: implement
-  resource_t *resource = system_resources;
-  while (resource != NULL)
+  if(cur_pcb == NULL || resource_name == NULL)
+    return FALSE;
+
+  /*Current resource in the linked list of resources*/
+  resource_t *current_resource = system_resources;
+
+  /*
+   * Loop through the resource linked list, for a resource with the same name as resource_name
+   * If resource with matching name is found, check if it is free
+   * If it is already taken, return FALSE
+   * else it is assigned to the current process, cur_pcb and return TRUE
+   * if resource is never found return FALSE
+   */
+  while (current_resource != NULL)
   {
-    if (strcmp(resource->name, resource_name) == 0)
+
+    if (strcmp(current_resource->name, resource_name) == 0)
     {
-      if (resource->allocated == NULL)
-      {
-        resource->allocated = cur_pcb;
-        log_request_acquired(cur_pcb->process->name, resource_name);
-        log_avail_resources(system_resources);
-        log_msg("\n");
-        return TRUE;
-      }
-      return FALSE; // return false if resource is already taken
+      if(current_resource != NULL)
+        return FALSE;
+
+      current_resource->allocated = cur_pcb;
+      log_request_acquired(cur_pcb->process->name, resource_name);
+      log_avail_resources(system_resources);
+      log_msg("\n");
+
+      return TRUE;
     }
-    resource = resource->next;
+
+    current_resource = current_resource->next;
+
   }
+
   return FALSE;
 }
 
@@ -222,6 +239,38 @@ bool_t acquire_resource(pcb_t *cur_pcb, char *resource_name) {
  */
 bool_t release_resource(pcb_t *proc, char *resource_name) {
   // TODO: implement
+  if(proc == NULL || resource_name == NULL)
+    return FALSE;
+  /*Current resource in the linked list of resources*/
+  resource_t *current_resource = system_resources;
+
+  /*
+   * Loop through the list of resources
+   * Check for resource with the same name as resource_name
+   * if it is found, checks if it is allocated to the proccess, proc
+   * returns FALSE if it is not
+   * else deallocated it and return TRUE
+   * if resource is never found return FALSE
+   */
+  while (current_resource != NULL)
+  {
+    if (strcmp(current_resource->name, resource_name) == 0)
+    {
+      if(current_resource->allocated != proc)
+        return FALSE;
+
+      current_resource->allocated = NULL;
+      log_release_released(proc->process->name, resource_name);
+      log_avail_resources(system_resources);
+      log_msg("\n");
+
+      return TRUE;
+    }
+
+    current_resource = current_resource->next;
+  }
+
+  return FALSE;
 }
 
 /**
@@ -233,10 +282,13 @@ bool_t release_resource(pcb_t *proc, char *resource_name) {
  */
 void enqueue(pcb_t *pcb, pcb_queue_t *queue, int status) {
   // TODO: implement
+  if(pcb == NULL)
+    return;
+
   pcb->next = NULL;
   pcb->state = status;
 
-  if (queue->first == NULL)
+  if(queue->first == NULL)
   {
     queue->first = pcb;
     queue->last = pcb;
@@ -246,7 +298,8 @@ void enqueue(pcb_t *pcb, pcb_queue_t *queue, int status) {
     queue->last->next = pcb;
     queue->last = pcb;
   }
-  queue->last = pcb;
+
+
   switch(status)
   {
     case READY:
@@ -254,7 +307,8 @@ void enqueue(pcb_t *pcb, pcb_queue_t *queue, int status) {
       break;
 
     case WAITING:
-      log_request_waiting(pcb->process->name, pcb->next_instruction->resource_name);
+      if(pcb->next_instruction != NULL)
+        log_request_waiting(pcb->process->name, pcb->next_instruction->resource_name);
       break;
 
     case TERMINATED:
@@ -263,6 +317,7 @@ void enqueue(pcb_t *pcb, pcb_queue_t *queue, int status) {
 
     default: break;
   }
+  
   return;
 }
 
