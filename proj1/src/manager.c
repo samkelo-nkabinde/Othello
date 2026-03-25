@@ -317,10 +317,28 @@ void enqueue(pcb_t *pcb, pcb_queue_t *queue, int status) {
 
     default: break;
   }
-  
+
   return;
 }
+/*
+ * Remove a process from the front of a queue
+ */
+pcb_t* dequeue(pcb_queue_t *queue) {
+  pcb_t *proc = NULL;
 
+  if (queue->first != NULL)
+  {
+    proc = queue->first;
+    queue->first = proc->next;
+
+    if (queue->first == NULL)
+      queue->last = NULL;
+
+    proc->next = NULL;
+  }
+
+  return proc;
+}
 /**
  * @brief detect deadlock
  * If deadlock is detected, the following log function must be called
