@@ -174,6 +174,31 @@ void schedule_priority(void) {
  **/
 int execute_instr(pcb_t *pcb) {
     // TODO: implement
+    if(pcb == NULL)
+      return TERMINATED;
+
+    if(pcb->next_instruction == NULL)
+    {
+      log_no_instr(pcb->process->name);
+      return TERMINATED;
+    }
+
+    instr_t *current_instruction = pcb->next_instruction;
+    int result = READY;
+
+    switch (current_instruction->type)
+    {
+      case REQ_OP:
+        if(acquire_resource(pcb, current_instr->resource_name))
+        {
+          result = READY;
+        }
+        else
+        {
+          result = WAITING;
+        }
+        break;
+    }
 }
 
 /**
@@ -201,7 +226,7 @@ bool_t acquire_resource(pcb_t *cur_pcb, char *resource_name) {
    * else it is assigned to the current process, cur_pcb and return TRUE
    * if resource is never found return FALSE
    */
-  while (current_resource != NULL)
+  while(current_resource != NULL)
   {
 
     if (strcmp(current_resource->name, resource_name) == 0)
