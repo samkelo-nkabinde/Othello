@@ -266,9 +266,9 @@ bool_t release_resource(pcb_t *proc, char *resource_name) {
   // TODO: implement
   if(proc == NULL || resource_name == NULL)
     return FALSE;
+    
   /*Current resource in the linked list of resources*/
   resource_t *current_resource = system_resources;
-
   /*
    * Loop through the list of resources
    * Check for resource with the same name as resource_name
