@@ -230,11 +230,14 @@ bool_t load_instruction(char *process_name, instr_types_t instruction,
   pcb_t *pcb = NULL;
 
   if (tmp_instr) {
-    if (strcmp(last_job_name, process_name) != 0) {
+    if (strcmp(last_job_name, process_name) != 0)
+    {
       first_instruction = tmp_instr;
       first_instruction->next = NULL;
       last_instruction = first_instruction;
-    } else {
+    }
+    else
+    {
       tmp_instr->next = NULL;
       last_instruction->next = tmp_instr;
       last_instruction = tmp_instr;
