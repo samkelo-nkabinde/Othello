@@ -82,7 +82,9 @@ int main(int argc, char** argv) {
     init_system();
     system_resources = get_resources();
     printf("***********Scheduling processes************\n");
+    init_locks();
     schedule_processes(num_thr, scheduler, time_quantum);
+    destroy_locks();
     dealloc_data_structures();
   } else {
     printf("Error: no processes to schedule\n");
@@ -111,6 +113,7 @@ void init_system(void)
     while(current_pcb != NULL)
     {
       current_pcb->state = READY;
+      total_processes++;
       previous_pcb = current_pcb;
       current_pcb = current_pcb->next;
     }
@@ -174,11 +177,8 @@ bool_t terminate() {
   omp_set_lock(&waitingq_lock);
   omp_set_lock(&terminatedq_lock);
 
-  if (readyq.first == NULL &&
-      (terminated_count + waiting_count) >= total_processes)
-  {
-    result = TRUE;
-  }
+    if (readyq.first == NULL && waitingq.first == NULL)
+        result = TRUE;
 
   omp_unset_lock(&terminatedq_lock);
   omp_unset_lock(&waitingq_lock);
@@ -206,6 +206,7 @@ bool_t load_new_processes(void) {
       pcb_t *next = temp->next;
       temp->next = NULL;
       add_to_ready_queue(temp);
+      total_processes++;
       temp = next;
     }
     log_pcbs("New arrivals in ready queue", new_arrivals);
@@ -248,6 +249,7 @@ void schedule_fcfs(void) {
       {
         omp_set_lock(&waitingq_lock);
         enqueue(current, &waitingq, WAITING);
+        waiting_count++;
         omp_unset_lock(&waitingq_lock);
         current = NULL;
         break;
@@ -256,8 +258,8 @@ void schedule_fcfs(void) {
       {
         omp_set_lock(&terminatedq_lock);
         enqueue(current, &terminatedq, TERMINATED);
-        omp_unset_lock(&terminatedq_lock);
         terminated_count++;
+        omp_unset_lock(&terminatedq_lock);
         current = NULL;
         break;
       }
@@ -311,6 +313,7 @@ void schedule_rr(int quantum) {
     {
       omp_set_lock(&waitingq_lock);
       enqueue(current, &waitingq, WAITING);
+      waiting_count++;
       omp_unset_lock(&waitingq_lock);
       current = NULL;
     }
@@ -318,8 +321,8 @@ void schedule_rr(int quantum) {
     {
       omp_set_lock(&terminatedq_lock);
       enqueue(current, &terminatedq, TERMINATED);
-      omp_unset_lock(&terminatedq_lock);
       terminated_count++;
+      omp_unset_lock(&terminatedq_lock);
       current = NULL;
     }
     else if (instructions_executed >= quantum)
@@ -397,6 +400,7 @@ void schedule_priority(void) {
     {
       omp_set_lock(&waitingq_lock);
       enqueue(current, &waitingq, WAITING);
+      waiting_count++;
       omp_unset_lock(&waitingq_lock);
       current = NULL;
     }
@@ -459,6 +463,7 @@ int execute_instr(pcb_t *pcb) {
         pcb_t *waiting_proc = waitingq.first;
         pcb_t *prev = NULL;
 
+        bool_t lock_released = FALSE;
         while (waiting_proc != NULL)
         {
           if (waiting_proc->next_instruction != NULL &&
@@ -483,6 +488,7 @@ int execute_instr(pcb_t *pcb) {
             waiting_proc->next = NULL;
 
             omp_unset_lock(&waitingq_lock);
+            lock_released = TRUE;
 
             log_wake_up(waiting_proc->process->name, current_instruction->resource_name);
             add_to_ready_queue(waiting_proc);
@@ -493,7 +499,8 @@ int execute_instr(pcb_t *pcb) {
           prev = waiting_proc;
           waiting_proc = waiting_proc->next;
         }
-        omp_unset_lock(&waitingq_lock);
+        if (!lock_released)
+           omp_unset_lock(&waitingq_lock);
         result = READY;
       }
       else
@@ -508,10 +515,13 @@ int execute_instr(pcb_t *pcb) {
       return TERMINATED;
     }
 
-  pcb->next_instruction = pcb->next_instruction->next;
+  if (result != WAITING)
+  {
+    pcb->next_instruction = pcb->next_instruction->next;
 
-  if (pcb->next_instruction == NULL)
-    result = TERMINATED;
+    if (pcb->next_instruction == NULL)
+      result = TERMINATED;
+  }
 
   return result;
 }
@@ -546,7 +556,7 @@ bool_t acquire_resource(pcb_t *cur_pcb, char *resource_name) {
 
     if (strcmp(current_resource->name, resource_name) == 0)
     {
-      if(current_resource != NULL)
+      if(current_resource->allocated != NULL)
         return FALSE;
 
       current_resource->allocated = cur_pcb;
@@ -781,8 +791,8 @@ struct pcb_t* detect_deadlock(void)
           deadlocked = 0;
           break;
         }
-        current = current->next;
       }
+      current = current->next;
     }
 
     if (deadlocked)
