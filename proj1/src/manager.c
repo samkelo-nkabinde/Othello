@@ -116,7 +116,7 @@ void init_system(void)
     }
 
     if(previous_pcb != NULL)
-      readyq.last = previous;
+      readyq.last = previous_pcb;
   }
 
   waitingq.last = NULL;
@@ -218,7 +218,7 @@ int execute_instr(pcb_t *pcb) {
     switch (current_instruction->type)
     {
       case REQ_OP:
-        if(acquire_resource(pcb, current_instr->resource_name))
+        if(acquire_resource(pcb, current_instruction->resource_name))
         {
           result = READY;
         }
@@ -227,7 +227,68 @@ int execute_instr(pcb_t *pcb) {
           result = WAITING;
         }
         break;
+      case REL_OP:
+      if (release_resource(pcb, current_instruction->resource_name))
+      {
+        omp_set_lock(&waitingq_lock);
+        pcb_t *waiting_proc = waitingq.first;
+        pcb_t *prev = NULL;
+
+        while (waiting_proc != NULL)
+        {
+          if (waiting_proc->next_instruction != NULL &&
+              strcmp(waiting_proc->next_instruction->resource_name,
+                     current_instruction->resource_name) == 0)
+          {
+
+            if (prev == NULL)
+            {
+              waitingq.first = waiting_proc->next;
+            }
+            else
+            {
+              prev->next = waiting_proc->next;
+            }
+
+            if (waitingq.last == waiting_proc)
+            {
+              waitingq.last = prev;
+            }
+
+            waiting_proc->next = NULL;
+
+            omp_unset_lock(&waitingq_lock);
+
+            log_wake_up(waiting_proc->process->name, current_instruction->resource_name);
+            add_to_ready_queue(waiting_proc);
+            waiting_count--;
+            break;
+          }
+
+          prev = waiting_proc;
+          waiting_proc = waiting_proc->next;
+        }
+        omp_unset_lock(&waitingq_lock);
+        result = READY;
+      }
+      else
+      {
+        log_release_error(pcb->process->name, current_instruction->resource_name);
+        result = READY;
+      }
+      break;
+
+    default:
+      log_unknown_instr(pcb->process->name);
+      return TERMINATED;
     }
+
+  pcb->next_instruction = pcb->next_instruction->next;
+
+  if (pcb->next_instruction == NULL)
+    result = TERMINATED;
+
+  return result;
 }
 
 /**
