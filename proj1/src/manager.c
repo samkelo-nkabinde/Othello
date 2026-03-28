@@ -152,15 +152,15 @@ void schedule_processes(int num_thr, schedule_t sched_type, int quantum)
   {
     case PRIOR:
       #pragma omp parallel num_threads(num_thr)
-      schedule_priority();
+        schedule_priority();
       break;
     case RR:
       #pragma omp parallel num_threads(num_thr)
-      schedule_rr(quantum);
+        schedule_rr(quantum);
       break;
     case FCFS:
       #pragma omp parallel num_threads(num_thr)
-      schedule_fcfs();
+        schedule_fcfs();
       break;
     default:
       break;
@@ -177,8 +177,10 @@ bool_t terminate() {
   omp_set_lock(&waitingq_lock);
   omp_set_lock(&terminatedq_lock);
 
-    if (readyq.first == NULL && waitingq.first == NULL)
-        result = TRUE;
+  if (readyq.first == NULL && (terminated_count + waiting_count) >= total_processes && total_processes > 0)
+  {
+      result = TRUE;
+  }
 
   omp_unset_lock(&terminatedq_lock);
   omp_unset_lock(&waitingq_lock);
@@ -200,16 +202,17 @@ bool_t load_new_processes(void) {
 
   if (has_arrivals)
   {
+    log_pcbs("New arrivals", new_arrivals);
     pcb_t *temp = new_arrivals;
     while (temp != NULL)
     {
       pcb_t *next = temp->next;
       temp->next = NULL;
       add_to_ready_queue(temp);
-      total_processes++;
+      #pragma omp atomic
+        total_processes++;
       temp = next;
     }
-    log_pcbs("New arrivals in ready queue", new_arrivals);
   }
   return has_arrivals;
 }
@@ -217,14 +220,10 @@ bool_t load_new_processes(void) {
 
 /** Schedules processes using FCFS scheduling */
 void schedule_fcfs(void) {
-  // TODO: implement
-  int my_id = omp_get_thread_num();
   pcb_t *current = NULL;
 
   while (!terminate())
   {
-
-    load_new_processes();
 
     omp_set_lock(&readyq_lock);
     current = dequeue(&readyq);
@@ -232,19 +231,22 @@ void schedule_fcfs(void) {
 
     if (current == NULL)
     {
+      load_new_processes();
       #pragma omp flush
       continue;
     }
 
     current->state = RUNNING;
-    log_running(current, my_id);
+
     print_queues(current);
 
-    // Execute instructions until blocked or terminated
     int exec_result = 0;
     do
     {
       exec_result = execute_instr(current);
+
+      load_new_processes();
+
       if (exec_result == WAITING)
       {
         omp_set_lock(&waitingq_lock);
@@ -275,7 +277,7 @@ void schedule_fcfs(void) {
 /** Schedules processes using the Round-Robin scheduler. */
 void schedule_rr(int quantum) {
   // TODO: implement
-  int my_id = omp_get_thread_num();
+  //int my_id = omp_get_thread_num();
   pcb_t *current = NULL;
   int instructions_executed = 0;
 
@@ -300,7 +302,7 @@ void schedule_rr(int quantum) {
     if (current->state != RUNNING)
     {
       current->state = RUNNING;
-      log_running(current, my_id);
+      //log_running(current, my_id);
       print_queues(current);
       instructions_executed = 0;
     }
@@ -308,7 +310,7 @@ void schedule_rr(int quantum) {
 
     int exec_result = execute_instr(current);
     instructions_executed++;
-
+    load_new_processes();
     if (exec_result == WAITING)
     {
       omp_set_lock(&waitingq_lock);
@@ -344,12 +346,12 @@ void schedule_rr(int quantum) {
 /** Schedules processes using priority scheduling with preemption */
 void schedule_priority(void) {
   // TODO: implement
-  int my_id = omp_get_thread_num();
+  //int my_id = omp_get_thread_num();
   pcb_t *current = NULL;
 
   while (!terminate())
   {
-    load_new_processes();
+    //load_new_processes();
 
     pcb_t *higher_priority = get_highest_priority_process();
 
@@ -390,7 +392,7 @@ void schedule_priority(void) {
     if (current->state != RUNNING)
     {
       current->state = RUNNING;
-      log_running(current, my_id);
+      //log_running(current, my_id);
       print_queues(current);
     }
 
@@ -486,13 +488,12 @@ int execute_instr(pcb_t *pcb) {
             }
 
             waiting_proc->next = NULL;
-
+            waiting_count--;
             omp_unset_lock(&waitingq_lock);
             lock_released = TRUE;
 
             log_wake_up(waiting_proc->process->name, current_instruction->resource_name);
             add_to_ready_queue(waiting_proc);
-            waiting_count--;
             break;
           }
 
@@ -700,6 +701,11 @@ pcb_t* get_highest_priority_process(void)
     else
     {
       prev_highest->next = highest->next;
+    }
+
+    if (readyq.last == highest)
+    {
+      readyq.last = prev_highest;
     }
 
     if (readyq.first == NULL)

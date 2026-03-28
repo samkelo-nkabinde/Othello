@@ -25,7 +25,7 @@ void print_instructions(char *msg, instr_t *nxt_instr);
 void enqueue_job(pcb_t *pcb);
 char *last_job_name = "";
 int total_num_jobs = 0;
-int num_ready_jobs = 0;
+int num_ready_jobs = 1;
 
 pcb_t *job_queue = NULL;
 
@@ -151,7 +151,7 @@ void load_ready_procs(int n) {
 bool_t load_mailbox(char* mailbox_name) {
   mailbox_t *tmp_mailbox = malloc(sizeof(mailbox_t));
   int success = TRUE;
- 
+
   if (tmp_mailbox) {
     if (first_mailbox == NULL) {
       first_mailbox = tmp_mailbox;
@@ -166,12 +166,12 @@ bool_t load_mailbox(char* mailbox_name) {
   } else {
     success = FALSE;
   }
- 
+
  #ifdef DEBUG_LOADER
    printf("Added %s; ", mailbox_name);
    print_mailboxes();
  #endif
- 
+
  return success;
 }
 
@@ -186,7 +186,7 @@ bool_t load_mailbox(char* mailbox_name) {
 bool_t load_resource(char *resource_name) {
   resource_t *tmp_resource = malloc(sizeof(resource_t));
   bool_t success = TRUE;
- 
+
   if (tmp_resource) {
     if (first_resource == NULL) {
       first_resource = tmp_resource;
@@ -289,7 +289,7 @@ pcb_t *longterm_scheduler(void) {
   }
   if (last_job_selected != NULL) last_job_selected->next = NULL;
   // Reset long-term scheduler load size to 1 after the initial ready processes are loaded
-  if (job_queue != NULL) num_ready_jobs = 1;
+  if ((num_ready_jobs == 0) && (job_queue != NULL)) num_ready_jobs = 1;
 
 #ifdef DEBUG_LOADER
   char *msg = malloc(64*sizeof(char));
