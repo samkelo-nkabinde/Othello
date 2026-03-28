@@ -142,7 +142,7 @@ void init_locks(void)
 /** @brief Schedules each instruction of each process */
 void schedule_processes(int num_thr, schedule_t sched_type, int quantum)
 {
-   active_threads = num_thr;
+  active_threads = num_thr;
   termination_flag = 0;
 
   switch (sched_type)
@@ -217,7 +217,57 @@ bool_t load_new_processes(void) {
 /** Schedules processes using FCFS scheduling */
 void schedule_fcfs(void) {
   // TODO: implement
+  int my_id = omp_get_thread_num();
+  pcb_t *current = NULL;
 
+  while (!terminate())
+  {
+
+    load_new_processes();
+
+    omp_set_lock(&readyq_lock);
+    current = dequeue(&readyq);
+    omp_unset_lock(&readyq_lock);
+
+    if (current == NULL)
+    {
+      #pragma omp flush
+      continue;
+    }
+
+    current->state = RUNNING;
+    log_running(current, my_id);
+    print_queues(current);
+
+    // Execute instructions until blocked or terminated
+    int exec_result = 0;
+    do
+    {
+      exec_result = execute_instr(current);
+      if (exec_result == WAITING)
+      {
+        omp_set_lock(&waitingq_lock);
+        enqueue(current, &waitingq, WAITING);
+        omp_unset_lock(&waitingq_lock);
+        current = NULL;
+        break;
+      }
+      else if (exec_result == TERMINATED)
+      {
+        omp_set_lock(&terminatedq_lock);
+        enqueue(current, &terminatedq, TERMINATED);
+        omp_unset_lock(&terminatedq_lock);
+        terminated_count++;
+        current = NULL;
+        break;
+      }
+    } while (exec_result == READY && current != NULL);
+
+    print_queues(current);
+  }
+
+  #pragma omp atomic
+    active_threads--;
 }
 
 /** Schedules processes using the Round-Robin scheduler. */
