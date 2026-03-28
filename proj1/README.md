@@ -72,3 +72,14 @@ make DEBUG=-DDEBUG_MNGR
 | `data` | Path to a `.list` process file, or `generate` for random generation |
 | `scheduler` | `0` = Priority, `1` = Round Robin, `2` = FCFS |
 | `time_quantum` | Number of instructions per timeslice (used by Round Robin only) |
+
+## Output Files
+
+For each thread or process, two files are written during execution:
+
+| File | Contents |
+|---|---|
+| `thr<id>.log` | Internal scheduling events (acquire, release, wakeup) |
+| `thr<id>.out` | Full execution trace including queue states |
+
+When the `DEBUG` flag is set, all output is mirrored to stdout.
