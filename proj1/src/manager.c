@@ -21,6 +21,17 @@ static pcb_queue_t waitingq;
 static pcb_queue_t readyq;
 static resource_t *system_resources;
 
+static int total_processes = 0; // Track total number of processes that will ever be scheduled
+static int terminated_count = 0; // Track number of terminated processes
+static int waiting_count = 0; // Track number of waiting processes
+
+static omp_lock_t readyq_lock;
+static omp_lock_t waitingq_lock;
+static omp_lock_t terminatedq_lock;
+static omp_lock_t resource_lock;
+static int termination_flag = 0;
+static int active_threads = 0;
+
 bool_t terminate();
 bool_t load_new_processes(void);
 void schedule_fcfs();
@@ -32,6 +43,12 @@ bool_t acquire_resource(pcb_t *proc, char *resource_name);
 bool_t release_resource(pcb_t *proc, char *resource_name);
 
 void enqueue(pcb_t *proc, pcb_queue_t *queue, int status);
+
+pcb_t* dequeue(pcb_queue_t *queue);
+void add_to_ready_queue(pcb_t *proc);
+
+void init_locks(void);
+void destroy_locks(void);
 
 /* get arguments */
 int get_num_threads(int num_args, char **argv);
@@ -108,6 +125,18 @@ void init_system(void)
   terminatedq.first = NULL;
 
   print_queues(NULL);
+}
+
+/*
+ * Initialize synchronization locks
+ */
+void init_locks(void)
+{
+  omp_init_lock(&readyq_lock);
+  omp_init_lock(&waitingq_lock);
+  omp_init_lock(&terminatedq_lock);
+  omp_init_lock(&resource_lock);
+  return;
 }
 
 /** @brief Schedules each instruction of each process */
@@ -266,7 +295,7 @@ bool_t release_resource(pcb_t *proc, char *resource_name) {
   // TODO: implement
   if(proc == NULL || resource_name == NULL)
     return FALSE;
-    
+
   /*Current resource in the linked list of resources*/
   resource_t *current_resource = system_resources;
   /*
@@ -345,6 +374,7 @@ void enqueue(pcb_t *pcb, pcb_queue_t *queue, int status) {
 
   return;
 }
+
 /*
  * Remove a process from the front of a queue
  */
@@ -369,9 +399,22 @@ pcb_t* dequeue(pcb_queue_t *queue) {
  * If deadlock is detected, the following log function must be called
  *  log_deadlock_detected();
  */
-struct pcb_t* detect_deadlock(void) {
+struct pcb_t* detect_deadlock(void)
+{
   /* TODO: Implement */
   return NULL;
+}
+
+/*
+ * Destroy synchronization locks
+ */
+void destroy_locks(void)
+{
+  omp_destroy_lock(&readyq_lock);
+  omp_destroy_lock(&waitingq_lock);
+  omp_destroy_lock(&terminatedq_lock);
+  omp_destroy_lock(&resource_lock);
+  return;
 }
 
 /** @brief Deallocate the queues */
