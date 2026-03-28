@@ -160,7 +160,23 @@ void schedule_processes(int num_thr, schedule_t sched_type, int quantum)
 /** @brief Return true when there are no more processes to schedule */
 bool_t terminate() {
   // TODO: implement
-  return FALSE;
+  bool_t result = FALSE;
+
+  omp_set_lock(&readyq_lock);
+  omp_set_lock(&waitingq_lock);
+  omp_set_lock(&terminatedq_lock);
+
+  if (readyq.first == NULL &&
+      (terminated_count + waiting_count) >= total_processes)
+  {
+    result = TRUE;
+  }
+
+  omp_unset_lock(&terminatedq_lock);
+  omp_unset_lock(&waitingq_lock);
+  omp_unset_lock(&readyq_lock);
+
+  return result;
 }
 
 /**
@@ -172,6 +188,21 @@ bool_t load_new_processes(void) {
   pcb_t *new_arrivals = longterm_scheduler();
   // TODO: Add new arrivals to the readyq using enqueue
   // TODO: and update any counters used to detect termination
+  bool_t has_arrivals = (new_arrivals != NULL);
+
+  if (has_arrivals)
+  {
+    pcb_t *temp = new_arrivals;
+    while (temp != NULL)
+    {
+      pcb_t *next = temp->next;
+      temp->next = NULL;
+      add_to_ready_queue(temp);
+      temp = next;
+    }
+    log_pcbs("New arrivals in ready queue", new_arrivals);
+  }
+  return has_arrivals;
 }
 
 
@@ -454,6 +485,13 @@ pcb_t* dequeue(pcb_queue_t *queue) {
   }
 
   return proc;
+}
+
+void add_to_ready_queue(pcb_t *proc)
+{
+  omp_set_lock(&readyq_lock);
+  enqueue(proc, &readyq, READY);
+  omp_unset_lock(&readyq_lock);
 }
 /**
  * @brief detect deadlock
