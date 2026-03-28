@@ -46,7 +46,7 @@ void enqueue(pcb_t *proc, pcb_queue_t *queue, int status);
 
 pcb_t* dequeue(pcb_queue_t *queue);
 void add_to_ready_queue(pcb_t *proc);
-
+pcb_t* get_highest_priority_process(void);
 void init_locks(void);
 void destroy_locks(void);
 
@@ -341,6 +341,79 @@ void schedule_rr(int quantum) {
 /** Schedules processes using priority scheduling with preemption */
 void schedule_priority(void) {
   // TODO: implement
+  int my_id = omp_get_thread_num();
+  pcb_t *current = NULL;
+
+  while (!terminate())
+  {
+    load_new_processes();
+
+    pcb_t *higher_priority = get_highest_priority_process();
+
+    if (higher_priority != NULL)
+    {
+      if (current != NULL && higher_priority->priority < current->priority)
+      {
+        omp_set_lock(&readyq_lock);
+        enqueue(current, &readyq, READY);
+        omp_unset_lock(&readyq_lock);
+        current = higher_priority;
+      }
+      else if (current == NULL)
+      {
+        current = higher_priority;
+      }
+      else
+      {
+        omp_set_lock(&readyq_lock);
+        enqueue(higher_priority, &readyq, READY);
+        omp_unset_lock(&readyq_lock);
+      }
+    }
+
+    if (current == NULL)
+    {
+      omp_set_lock(&readyq_lock);
+      current = dequeue(&readyq);
+      omp_unset_lock(&readyq_lock);
+    }
+
+    if (current == NULL)
+    {
+      #pragma omp flush
+      continue;
+    }
+
+    if (current->state != RUNNING)
+    {
+      current->state = RUNNING;
+      log_running(current, my_id);
+      print_queues(current);
+    }
+
+    int exec_result = execute_instr(current);
+
+    if (exec_result == WAITING)
+    {
+      omp_set_lock(&waitingq_lock);
+      enqueue(current, &waitingq, WAITING);
+      omp_unset_lock(&waitingq_lock);
+      current = NULL;
+    }
+    else if (exec_result == TERMINATED)
+    {
+      omp_set_lock(&terminatedq_lock);
+      enqueue(current, &terminatedq, TERMINATED);
+      omp_unset_lock(&terminatedq_lock);
+      terminated_count++;
+      current = NULL;
+    }
+
+    print_queues(current);
+  }
+
+  #pragma omp atomic
+    active_threads--;
 }
 
 /** Call the correct function to execute the next instruction of the process
@@ -587,7 +660,48 @@ void enqueue(pcb_t *pcb, pcb_queue_t *queue, int status) {
 
   return;
 }
+pcb_t* get_highest_priority_process(void)
+{
+  pcb_t *highest = NULL;
+  pcb_t *prev = NULL;
+  pcb_t *curr = NULL;
+  pcb_t *prev_highest = NULL;
 
+  omp_set_lock(&readyq_lock);
+
+  curr = readyq.first;
+  while (curr != NULL)
+  {
+    if (highest == NULL || curr->priority < highest->priority)
+    {
+      highest = curr;
+      prev_highest = prev;
+    }
+    prev = curr;
+    curr = curr->next;
+  }
+
+  if (highest != NULL)
+  {
+    if (prev_highest == NULL)
+    {
+      readyq.first = highest->next;
+    }
+    else
+    {
+      prev_highest->next = highest->next;
+    }
+
+    if (readyq.first == NULL)
+    {
+      readyq.last = NULL;
+    }
+    highest->next = NULL;
+  }
+
+  omp_unset_lock(&readyq_lock);
+  return highest;
+}
 /*
  * Remove a process from the front of a queue
  */
