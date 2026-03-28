@@ -402,7 +402,86 @@ pcb_t* dequeue(pcb_queue_t *queue) {
 struct pcb_t* detect_deadlock(void)
 {
   /* TODO: Implement */
-  return NULL;
+  omp_set_lock(&waitingq_lock);
+
+  if (waitingq.first == NULL)
+  {
+    omp_unset_lock(&waitingq_lock);
+    return NULL;
+  }
+
+  int waiting_processes = 0;
+  int deadlocked = 0;
+  pcb_t *current = waitingq.first;
+  while (current != NULL)
+  {
+    waiting_processes++;
+    current = current->next;
+  }
+
+  if (waiting_processes > 0 && waiting_processes == waiting_count)
+  {
+    current = waitingq.first;
+    deadlocked = 1;
+
+    while (current != NULL)
+    {
+      if (current->next_instruction != NULL)
+      {
+        char *resource_name = current->next_instruction->resource_name;
+        resource_t *resource = system_resources;
+        int resource_available = 0;
+
+        while (resource != NULL)
+        {
+          if (strcmp(resource->name, resource_name) == 0 && resource->allocated == NULL)
+          {
+            resource_available = 1;
+            break;
+          }
+          resource = resource->next;
+        }
+
+        if (resource_available)
+        {
+          deadlocked = 0;
+          break;
+        }
+        current = current->next;
+      }
+    }
+
+    if (deadlocked)
+    {
+      log_deadlock_detected();
+      current = waitingq.first;
+
+      while (current != NULL)
+      {
+        log_msg(current->process->name);
+        if (current->next != NULL)
+          log_msg(" - ");
+
+        current = current->next;
+      }
+      log_msg("\n");
+  }
+  else if (waiting_processes > 0)
+  {
+    log_blocked_procs();
+    current = waitingq.first;
+    while (current != NULL)
+    {
+      log_msg(" ");
+      log_msg(current->process->name);
+      current = current->next;
+    }
+    log_msg("\n");
+    }
+  }
+
+  omp_unset_lock(&waitingq_lock);
+  return waitingq.first;
 }
 
 /*
