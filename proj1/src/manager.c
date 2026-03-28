@@ -273,6 +273,69 @@ void schedule_fcfs(void) {
 /** Schedules processes using the Round-Robin scheduler. */
 void schedule_rr(int quantum) {
   // TODO: implement
+  int my_id = omp_get_thread_num();
+  pcb_t *current = NULL;
+  int instructions_executed = 0;
+
+  while (!terminate())
+  {
+    load_new_processes();
+
+    omp_set_lock(&readyq_lock);
+    if (current == NULL)
+    {
+      current = dequeue(&readyq);
+    }
+    omp_unset_lock(&readyq_lock);
+
+    if (current == NULL)
+    {
+      #pragma omp flush
+      continue;
+    }
+
+
+    if (current->state != RUNNING)
+    {
+      current->state = RUNNING;
+      log_running(current, my_id);
+      print_queues(current);
+      instructions_executed = 0;
+    }
+
+
+    int exec_result = execute_instr(current);
+    instructions_executed++;
+
+    if (exec_result == WAITING)
+    {
+      omp_set_lock(&waitingq_lock);
+      enqueue(current, &waitingq, WAITING);
+      omp_unset_lock(&waitingq_lock);
+      current = NULL;
+    }
+    else if (exec_result == TERMINATED)
+    {
+      omp_set_lock(&terminatedq_lock);
+      enqueue(current, &terminatedq, TERMINATED);
+      omp_unset_lock(&terminatedq_lock);
+      terminated_count++;
+      current = NULL;
+    }
+    else if (instructions_executed >= quantum)
+    {
+
+      omp_set_lock(&readyq_lock);
+      enqueue(current, &readyq, READY);
+      omp_unset_lock(&readyq_lock);
+      current = NULL;
+    }
+
+    print_queues(current);
+  }
+
+  #pragma omp atomic
+    active_threads--;
 }
 
 /** Schedules processes using priority scheduling with preemption */
