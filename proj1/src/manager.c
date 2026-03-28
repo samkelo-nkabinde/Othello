@@ -142,19 +142,27 @@ void init_locks(void)
 /** @brief Schedules each instruction of each process */
 void schedule_processes(int num_thr, schedule_t sched_type, int quantum)
 {
-  switch (sched_type) {
+   active_threads = num_thr;
+  termination_flag = 0;
+
+  switch (sched_type)
+  {
     case PRIOR:
+      #pragma omp parallel num_threads(num_thr)
       schedule_priority();
       break;
     case RR:
+      #pragma omp parallel num_threads(num_thr)
       schedule_rr(quantum);
       break;
     case FCFS:
+      #pragma omp parallel num_threads(num_thr)
       schedule_fcfs();
       break;
     default:
       break;
   }
+  return;
 }
 
 /** @brief Return true when there are no more processes to schedule */
