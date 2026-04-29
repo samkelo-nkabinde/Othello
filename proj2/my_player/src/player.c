@@ -49,6 +49,24 @@
 
 #define MAX_MOVES 64
 
+typedef struct Node
+{
+	int move;
+	int colour;
+	int visits;
+	double wins;
+
+	int parent;
+	int children[MAX_MOVES];
+	int mum_child;
+
+	int untried[MAX_MOVES];
+	int num_untried;
+
+	int board[BOARD_SIZE * BOARD_SIZE];
+
+}MCTS_Node;
+
 const char *PLAYER_LOG_FILE = "my_player.log";
 char PLAYER_NAME_LOG[512];
 
