@@ -67,6 +67,20 @@ typedef struct Node
 
 }MCTS_Node;
 
+int *board;
+
+MCTS_Node node_pool[MAX_NODES];
+int pool_size;
+
+int mcts(const int *root_board, int my_colour, double time, FILE *fp, int use_shared, double *share_visits, double *shares_wins);
+
+int selection(int root);
+int expand(int index);
+int uct_selection(int index);
+double simulate(int index, int root_colour);
+void backpropagation(int index, double result, int root_colour);
+
+
 const char *PLAYER_LOG_FILE = "my_player.log";
 char PLAYER_NAME_LOG[512];
 
